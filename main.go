@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	wssURL = "wss://mainnet.helius-rpc.com/?api-key=0f803376-0189-4d72-95f6-a5f41cef157d"
+	wssURL = "wss://mainnet.helius-rpc.com/?api-key=API_KEY"
 )
 
 // AccountNotification for account updates
