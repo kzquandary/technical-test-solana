@@ -11,5 +11,6 @@ func GetTransferMessage(transferData transaction.TransactionTransfer) string {
 }
 
 func GetSPLTokenTransactionMessage(splTokenTransfer transaction.SPLTokenTransfer) string {
-	return fmt.Sprintf("%s bought %s with %s SOL", splTokenTransfer.WalletAddress, splTokenTransfer.TokenName, splTokenTransfer.SolAmount)
+	message := fmt.Sprintf("%s bought %s with %s SOL", splTokenTransfer.WalletAddress, splTokenTransfer.TokenName, splTokenTransfer.SolAmount)
+	return message
 }
