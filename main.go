@@ -7,27 +7,43 @@ import (
 	"log"
 	"os"
 	"strings"
-	"time"
+
+	"soltracker/config"
+	transactionService "soltracker/feature/transaction/service"
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gorilla/websocket"
 )
 
+const API_KEY = "0f803376-0189-4d72-95f6-a5f41cef157d"
+
 const (
-	wssURL = "wss://mainnet.helius-rpc.com/?api-key=API_KEY"
+	wssURL = "wss://mainnet.helius-rpc.com/?api-key=" + API_KEY
+	rpcURL = "https://mainnet.helius-rpc.com/?api-key=" + API_KEY
 )
 
-// AccountNotification for account updates
-type AccountNotification struct {
-	Params struct {
+type LogSubscribePayload struct {
+	Jsonrpc string        `json:"jsonrpc"`
+	Method  string        `json:"method"`
+	Params  []interface{} `json:"params"`
+	ID      int           `json:"id"`
+}
+
+type LogsNotification struct {
+	Jsonrpc string `json:"jsonrpc"`
+	Method  string `json:"method"`
+	Params  struct {
 		Result struct {
 			Context struct {
 				Slot uint64 `json:"slot"`
 			} `json:"context"`
 			Value struct {
-				Lamports uint64 `json:"lamports"`
+				Signature string   `json:"signature"`
+				Err       *string  `json:"err,omitempty"`
+				Logs      []string `json:"logs"`
 			} `json:"value"`
 		} `json:"result"`
+		Subscription int `json:"subscription"`
 	} `json:"params"`
 }
 
@@ -52,10 +68,16 @@ func main() {
 	subscription := fmt.Sprintf(`{
 		"jsonrpc": "2.0",
 		"id": 1,
-		"method": "accountSubscribe",
+		"method": "logsSubscribe",
 		"params": [
-			"%s",
-			{"encoding": "jsonParsed", "commitment": "finalized"}
+			{
+				"mentions": [
+					"%s"
+				]
+			},
+			{
+				"commitment": "finalized"
+			}
 		]
 	}`, walletAddress)
 
@@ -68,24 +90,31 @@ func main() {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
 			log.Printf("Error reading message: %v", err)
-			time.Sleep(5 * time.Second)
 			continue
 		}
 
-		var notification AccountNotification
+		var notification LogsNotification
 		if err := json.Unmarshal(message, &notification); err != nil {
-			log.Printf("Error parsing message: %v", err)
+			// log.Printf("Error parsing message: %v", err)
 			continue
 		}
+		if notification.Params.Result.Value.Err != nil {
+			continue
+		}
+		if notification.Params.Result.Value.Logs == nil {
+			continue
+		}
+		// log.Printf("Notifikasi: %v", notification)
+		transactionResponse := transactionService.GetTransaction(notification.Params.Result.Value.Signature)
 
-		processAccountChange(walletAddress, notification)
+		splTokenTransfer := transactionService.GetSPLTokenTransaction(transactionResponse, walletAddress)
+		if splTokenTransfer.TokenName != "" {
+			fmt.Println(config.GetSPLTokenTransactionMessage(splTokenTransfer))
+		}
+
+		transferData := transactionService.GetWalletTransfer(transactionResponse, walletAddress)
+		if len(transferData) > 0 {
+			fmt.Println(config.GetTransferMessage(transferData[0]))
+		}
 	}
-}
-
-func processAccountChange(walletAddress string, notification AccountNotification) {
-	fmt.Printf("Balance updated for %s: %d lamports (%.6f SOL) at slot %d\n",
-		walletAddress,
-		notification.Params.Result.Value.Lamports,
-		float64(notification.Params.Result.Value.Lamports)/1e9,
-		notification.Params.Result.Context.Slot)
 }
